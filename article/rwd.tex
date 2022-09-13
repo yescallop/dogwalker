@@ -1,0 +1,164 @@
+\documentclass{amsart}
+\usepackage{amsmath,amssymb,amsthm}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{conjecture}[theorem]{Conjecture}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{problem}[theorem]{Problem}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\title{The Problem of the Randomly Walked Dog}
+\author{Scallop Ye}
+
+\begin{document}
+
+\begin{abstract}
+    In 1905, Karl Pearson \cite{pearson} proposed on \emph{Nature} the
+    famous problem of the random walk. This article presents a
+    new problem analogous to Pearson's one and formulates several
+    conjectures based on computer simulation.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+
+A man each day takes his dog out for a walk. For training purposes,
+the dog is required to come up with a list of steps as (direction, distance) pairs
+in which no two directions are identical or opposite and every distance is nonzero.
+The man then shuffles the steps uniformly at random and begins to walk the dog.
+
+They start from a point $O$, turn to the direction of the first step and walk the
+corresponding distance in a straight line, leaving a trail behind them.
+They repeat this process with the next step until no more step is available.
+The dog wins a treat if they ever crossed the trail before they reach the destination.
+
+Now, the dog asks you to help maximize the probability to win the treat in a walk.
+The man is known to sometimes restrict the number of steps provided and sometimes not.
+Note that too much calculation exhausts the dog.
+
+\begin{remark}
+    As one might have seen, this problem differs from Pearson's one in that
+    it is not fundamentally probabilistic. We could also present the problem
+    without introducing randomness, except that it would make the storytelling less convenient.
+\end{remark}
+
+\section{Preliminaries}
+
+\begin{definition}
+    Let $P=(p_k)_{k=1}^n$ denote a \emph{polygonal path} with vertices\\
+    $(p_1,p_2,\dots,p_n)$ and edges
+    $(\overline{p_1p_2},\overline{p_2p_3},\dots,\overline{p_{n-1}p_n})$.
+    The set of all the points on the path $P$, denoted by $\widetilde{P}$,
+    is the union of all its edges:
+    \[\widetilde{P}=\bigcup_{i=1}^{n-1}\overline{p_{i}p_{i+1}}.\]
+\end{definition}
+
+\begin{definition}
+    A polygonal path $(p_k)_{k=1}^n$ is \emph{simple} if and only if
+    for all $i,j$ such that $1<i\le j<n$,
+    \[
+        \overline{p_{i-1}p_i}\cap\overline{p_jp_{j+1}}=
+        \begin{cases}
+            \{p_i\}            & \text{if $i=j$},                     \\
+            \{p_1\}\cap\{p_n\} & \text{if $n>3$ and $(i,j)=(2,n-1)$}, \\
+            \varnothing        & \text{otherwise}.
+        \end{cases}
+    \]
+\end{definition}
+
+\newcommand{\sseq}{\widetilde{\Delta}_n}
+\newcommand{\sset}{\Delta_n}
+
+\begin{definition}
+    A \emph{step sequence} of length $n$, denoted by $\sseq=(\delta_k)_{k=1}^n$,
+    is a sequence of distinct \textbf{noncollinear} vectors in $\mathbb{R}^2$.
+    The set of elements in $\sseq$ is denoted by $\sset$.
+    We call $\sset$ a \emph{step set} of size $n$ and $\sseq$
+    a \emph{permutation} of $\sset$.
+
+    The \emph{resultant walk} of $\sseq$, denoted by $\mathrm{walk}(\sseq)$, is the polygonal path
+    $(p_k)_{k=0}^{n}$ where $p_0=(0,0)$ and \[p_i=p_{i-1}+\delta_i,\quad1\le i\le n.\]
+\end{definition}
+
+\begin{theorem}
+    For all step sets $\sset$, there exists a permutation $\sseq$ of $\sset$
+    such that $\mathrm{walk}(\sseq)$ is simple.
+\end{theorem}
+
+The proof of this theorem is left as an exercise to the reader.
+
+\newcommand{\csset}{C_n}
+\newcommand{\csseq}{\widetilde{C}_n}
+
+\begin{problem}
+\label{problem:general}
+Define the \emph{simplicity} of a step set as the number of its permutations
+of which the resultant walk is simple. For a fixed $n\ge2$, denote by $\csset$
+a step set with the minimum simplicity among all $\sset$.
+We therefore call $\csset$ a \emph{complex} step set. Let $a_n$ be the
+simplicity of $\csset$. Find an instance of $\csset$ and the value of $a_n$.
+\end{problem}
+
+\begin{problem}
+\label{problem:zerosum}
+For a fixed $n\ge3$, let $b_n$ be the minimum simplicity of a step set of size $n$
+in which all the vectors \textbf{sum to zero}. Find the value of $b_n$.
+\end{problem}
+
+\section{Results}
+
+After computer simulation on Problems \ref{problem:general} and \ref{problem:zerosum},
+we formulate the following conjectures from our observations.
+
+\begin{conjecture}[Initial terms of and relation between $(a_n),(b_n)$]
+    \begin{align*}
+        (a_2,a_3,\dots,a_6) & =(2,4,8,28,100),                   \\
+        (b_3,b_4,\dots,b_7) & =(6,16,40,168,700),                \\
+        b_n                 & =n\cdot a_{n-1}\quad\forall n\ge3.
+    \end{align*}
+\end{conjecture}
+
+\begin{conjecture}[Law of large complex step sets]
+    The sequence \[\left(\frac{a_n}{n!}\right)_{n=2}^\infty\]
+    is strictly decreasing and converges to zero.
+\end{conjecture}
+
+\begin{conjecture}[Property of complex step sets]
+    Let $\csset$ be a complex step set of size $n$. For all permutations
+    $\csseq$ of $\csset$ with
+    \[P=\mathrm{walk}(\csseq)=(p_k)_{k=0}^{n},\]
+    it holds that $p_0\ne p_n$ and
+    \[\widetilde{P}\cap\overline{p_0p_n}=\{p_0,p_n\}.\]
+\end{conjecture}
+
+Although we are not yet able to prove these conjectures or to
+find a general solution to the problem, we can still make
+some practical suggestions for the dog:
+
+\begin{enumerate}
+    \item The more steps you provide, the better.
+    \item If the number of steps is small, it is possible to brute-force
+          an optimal solution by random simulation.
+    \item If the number of steps is very large, a list of fixed-distance steps with uniformly
+          distributed directions might serve to win the treat almost surely.
+    \item No matter how hard you try, it is always possible that you fail to win the treat.
+          Keep trying, don't lose faith, and don't exhaust yourself.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+
+    \bibitem{pearson}
+    Pearson, K.
+    The Problem of the Random Walk.
+    \emph{Nature}
+    \textbf{72},
+    294 (1905).
+
+\end{thebibliography}
+
+\end{document}

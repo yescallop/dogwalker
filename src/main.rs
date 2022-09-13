@@ -1,29 +1,21 @@
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Arc,
-};
-use std::thread;
+use std::{sync::Arc, thread};
 
+use dogwalker::*;
 use quickperm::meta::{Const, IndexPair, MetaPerm};
 use rand::prelude::*;
 
-const N: usize = 6;
+const N: usize = 7;
 const SHIFTS: u32 = usize::BITS - N.leading_zeros();
-const CLOSE: bool = false;
+const CLOSE: bool = true;
 
 fn main() {
-    let min = Arc::new(AtomicU32::new(u32::MAX));
+    // let state = Arc::new(Max::new());
+    let state = Arc::new(Collect::new(N, CLOSE).unwrap());
     for _ in 0..4 {
-        let min = min.clone();
-        thread::spawn(|| Simulator::new(min).run());
+        let state = state.clone();
+        thread::spawn(|| Simulator::new(state).run());
     }
     thread::park();
-}
-
-#[derive(Clone, Copy, Default)]
-struct Point<T> {
-    x: T,
-    y: T,
 }
 
 fn direction(i: Point<i64>, j: Point<i64>, k: Point<i64>) -> i64 {
@@ -57,23 +49,23 @@ fn segments_intersect(p: [Point<i64>; 4]) -> bool {
     // }
 }
 
-struct Simulator {
+struct Simulator<S: State> {
     rng: SmallRng,
     mp: MetaPerm<Const<N>>,
-    walks: [Point<i32>; N],
-    vertices: [Point<i64>; N + 1],
-    min: Arc<AtomicU32>,
+    steps: [Point<i32>; N],
+    walk: [Point<i64>; N + 1],
+    state: Arc<S>,
 }
 
-impl Simulator {
-    fn new(min: Arc<AtomicU32>) -> Self {
+impl<S: State> Simulator<S> {
+    fn new(state: Arc<S>) -> Self {
         assert!(N >= 3);
         Self {
             rng: SmallRng::from_entropy(),
             mp: MetaPerm::new_const(),
-            walks: Default::default(),
-            vertices: Default::default(),
-            min,
+            steps: Default::default(),
+            walk: Default::default(),
+            state,
         }
     }
 
@@ -83,30 +75,30 @@ impl Simulator {
         for i in 0..len {
             let x = self.rng.next_u32() as i32 >> SHIFTS;
             let y = self.rng.next_u32() as i32 >> SHIFTS;
-            self.walks[i] = Point { x, y };
+            self.steps[i] = Point { x, y };
             v.x += x;
             v.y += y;
         }
         if CLOSE {
             (v.x, v.y) = (-v.x, -v.y);
-            self.walks[N - 1] = v;
+            self.steps[N - 1] = v;
         }
     }
 
     fn test(&mut self) -> bool {
         let mut v = Point::default();
         for i in 0..N {
-            let walk = self.walks[i];
+            let walk = self.steps[i];
             let last_v = v;
 
             v.x += walk.x as i64;
             v.y += walk.y as i64;
-            self.vertices[i + 1] = v;
+            self.walk[i + 1] = v;
 
             if i >= 2 {
                 let start = (CLOSE && i == N - 1) as usize;
                 for j in start..i - 1 {
-                    if segments_intersect([last_v, v, self.vertices[j], self.vertices[j + 1]]) {
+                    if segments_intersect([last_v, v, self.walk[j], self.walk[j + 1]]) {
                         return false;
                     }
                 }
@@ -119,10 +111,10 @@ impl Simulator {
         let mut cnt = 0;
         loop {
             cnt += self.test() as u32;
-            unsafe { IndexPair::new(0, 1).swap_unchecked(&mut self.walks) }
+            unsafe { IndexPair::new(0, 1).swap_unchecked(&mut self.steps) }
             cnt += self.test() as u32;
             if let Some(p) = self.mp.gen_even() {
-                unsafe { p.swap_unchecked(&mut self.walks) }
+                unsafe { p.swap_unchecked(&mut self.steps) }
             } else {
                 break;
             }
@@ -134,18 +126,7 @@ impl Simulator {
         loop {
             self.gen();
             let cnt = self.count();
-            let prev = self.min.fetch_min(cnt, Ordering::SeqCst);
-            if cnt <= prev {
-                print!("{}: {{", cnt);
-                for i in 0..N {
-                    if i != 0 {
-                        print!(",");
-                    }
-                    let walk = self.walks[i];
-                    print!("{{{},{}}}", walk.x, walk.y);
-                }
-                println!("}}");
-            }
+            self.state.update(cnt, &self.steps);
         }
     }
 }
