@@ -5,6 +5,7 @@ edition = "2021"
 default-run = "dogwalker"
 
 [dependencies]
+ctrlc = "3"
 mixhash = { git = "https://github.com/yescallop/mixhash" }
 quickperm = { git = "https://github.com/yescallop/quickperm-rs" }
 readonly = "0.2"

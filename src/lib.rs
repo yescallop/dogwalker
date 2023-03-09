@@ -7,7 +7,7 @@ pub struct Point<T> {
     pub y: T,
 }
 
-use std::sync::Arc;
+use std::sync::{atomic::Ordering, Arc};
 
 use quickperm::meta::{Dyn, IndexPair, MetaPerm};
 pub use recorder::Recorder;
@@ -130,24 +130,35 @@ impl Simulator {
         si
     }
 
+    fn steps_noncollinear(&self) -> bool {
+        for i in 0..self.n {
+            for j in i + 1..self.n {
+                let a = self.steps[i];
+                let b = self.steps[j];
+                if (a.x as i64) * (b.y as i64) == (a.y as i64) * (b.x as i64) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     fn minify_steps(&mut self, si: u32) {
         let mut last_steps = self.steps.clone();
         loop {
             let mut v = Point::<i32>::default();
-            let mut any_zero = self.steps.iter_mut().any(|step| {
+            self.steps.iter_mut().for_each(|step| {
                 step.x /= 2;
                 step.y /= 2;
                 v.x += step.x;
                 v.y += step.y;
-                step.x == 0 && step.y == 0
             });
             if self.closed {
                 let last = &mut self.steps[self.n - 1];
                 last.x -= v.x;
                 last.y -= v.y;
-                any_zero |= last.x == 0 && last.y == 0;
             }
-            if any_zero || self.simpleness_index::<true>() != si {
+            if !self.steps_noncollinear() || self.simpleness_index::<true>() != si {
                 self.steps = last_steps;
                 break;
             }
@@ -159,13 +170,17 @@ impl Simulator {
         loop {
             self.gen();
             let si = self.simpleness_index::<false>();
-            if !self.recorder.contains(si) {
-                if self.simpleness_index::<true>() != si {
-                    continue;
-                }
+            if !self.recorder.contains(si)
+                && self.simpleness_index::<true>() == si
+                && self.steps_noncollinear()
+            {
                 self.minify_steps(si);
                 self.recorder.insert(si, &self.steps);
             }
+            if !self.recorder.running.load(Ordering::SeqCst) {
+                return;
+            }
+            self.recorder.count.fetch_add(1, Ordering::SeqCst);
         }
     }
 }

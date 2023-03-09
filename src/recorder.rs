@@ -3,7 +3,10 @@ use std::{
     fmt,
     fs::File,
     io::{self, BufRead, BufReader, Write},
-    sync::RwLock,
+    sync::{
+        atomic::{AtomicBool, AtomicU64},
+        RwLock,
+    },
 };
 
 use crate::Point;
@@ -19,6 +22,8 @@ struct RecorderState {
 pub struct Recorder {
     pub n: usize,
     pub closed: bool,
+    pub running: AtomicBool,
+    pub count: AtomicU64,
     state: RwLock<RecorderState>,
 }
 
@@ -55,6 +60,8 @@ impl Recorder {
         Ok(Recorder {
             n,
             closed,
+            running: AtomicBool::new(true),
+            count: AtomicU64::new(0),
             state: RwLock::new(RecorderState {
                 si_set,
                 file: reader.into_inner(),

@@ -1,12 +1,31 @@
-use std::{sync::Arc, thread};
+use std::{
+    sync::{atomic::Ordering, Arc},
+    thread,
+    time::Instant,
+};
 
 use dogwalker::{Recorder, Simulator};
 
 fn main() {
-    let recorder = Arc::new(Recorder::new(6, false).unwrap());
-    for _ in 0..8 {
+    let recorder = Arc::new(Recorder::new(7, true).unwrap());
+    let mut handles = vec![];
+    let start = Instant::now();
+
+    for _ in 0..4 {
         let recorder = recorder.clone();
-        thread::spawn(|| Simulator::new(recorder).run());
+        handles.push(thread::spawn(|| Simulator::new(recorder).run()));
     }
-    thread::park();
+
+    ctrlc::set_handler(move || {
+        recorder.running.store(false, Ordering::SeqCst);
+        let count = recorder.count.load(Ordering::SeqCst);
+        let speed = count / start.elapsed().as_secs();
+
+        println!("count: {count} ({speed}/s)");
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }
