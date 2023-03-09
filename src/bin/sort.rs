@@ -6,7 +6,7 @@ use std::{
 };
 
 fn main() -> io::Result<()> {
-    for entry in fs::read_dir("collect")? {
+    for entry in fs::read_dir("record")? {
         let path = entry?.path();
         if path.is_file() {
             sort(path)?;

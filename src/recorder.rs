@@ -27,7 +27,7 @@ impl Recorder {
         assert!(if closed { n > 2 } else { n > 0 });
 
         let kind = if closed { "closed" } else { "general" };
-        let path = format!("collect/{n}-{kind}.txt");
+        let path = format!("record/{n}-{kind}.txt");
         let file = File::options()
             .write(true)
             .read(true)
