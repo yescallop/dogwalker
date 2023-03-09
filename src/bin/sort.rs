@@ -1,6 +1,7 @@
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
-    io::{self, BufRead, BufReader, BufWriter, Seek, Write},
+    io::{self, BufWriter, Write},
     path::PathBuf,
 };
 
@@ -17,57 +18,32 @@ fn main() -> io::Result<()> {
 fn sort(path: PathBuf) -> io::Result<()> {
     print!("{}: ", path.file_name().unwrap().to_str().unwrap());
 
-    let file = File::options().write(true).read(true).open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut vec = Vec::new();
-    let mut num = 0;
-    let mut last = 0;
+    let string = fs::read_to_string(&path)?;
+    let mut map = BTreeMap::new();
+    let mut last_si = 0;
     let mut sorted = true;
 
-    loop {
-        let buf = reader.fill_buf()?;
-        if buf.is_empty() {
-            break;
-        }
-
-        for &b in buf {
-            if let Some(x) = (b as char).to_digit(10) {
-                num = num * 10 + x;
-            } else if b == b'\n' && num != 0 {
-                vec.push(num);
-                if num < last {
-                    sorted = false;
-                }
-                last = num;
-                num = 0;
-            }
-        }
-
-        let len = buf.len();
-        reader.consume(len);
-    }
-
-    if num != 0 {
-        vec.push(num);
-        if num < last {
+    for line in string.lines() {
+        let si: u32 = line
+            .split_once(':')
+            .map(|(si, _)| si)
+            .unwrap_or(line)
+            .parse()
+            .unwrap();
+        map.insert(si, line);
+        if si < last_si {
             sorted = false;
         }
+        last_si = si;
     }
 
     if sorted {
         println!("none");
     } else {
-        vec.sort_unstable();
-
-        let mut writer = BufWriter::new(reader.into_inner());
-        writer.rewind()?;
-
-        for num in vec {
-            writeln!(writer, "{num}")?;
+        let mut writer = BufWriter::new(File::create(&path)?);
+        for (_, line) in map {
+            writeln!(writer, "{line}")?;
         }
-
-        let pos = writer.stream_position()?;
-        writer.into_inner()?.set_len(pos)?;
         println!("sorted");
     }
 
