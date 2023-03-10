@@ -1,5 +1,6 @@
 pub mod recorder;
 pub mod rng;
+pub mod sort;
 
 #[derive(Clone, Copy, Default)]
 pub struct Point<T> {
@@ -7,7 +8,10 @@ pub struct Point<T> {
     pub y: T,
 }
 
-use std::sync::{atomic::Ordering, Arc};
+use std::{
+    mem,
+    sync::{atomic::Ordering, Arc},
+};
 
 use quickperm::meta::{Dyn, IndexPair, MetaPerm};
 pub use recorder::Recorder;
@@ -49,13 +53,15 @@ fn segments_intersect<const STRICT: bool>(p: [Point<i64>; 4]) -> bool {
 pub struct Simulator {
     n: usize,
     closed: bool,
-    shifts: u32,
     rng: Rng,
     mp: MetaPerm<Dyn>,
     steps: Vec<Point<i32>>,
     walk: Vec<Point<i64>>,
     recorder: Arc<Recorder>,
+    steps_buf: Vec<Point<i32>>,
 }
+
+const SHIFTS: u32 = 16;
 
 impl Simulator {
     pub fn new(recorder: Arc<Recorder>) -> Self {
@@ -63,27 +69,27 @@ impl Simulator {
         Self {
             n,
             closed: recorder.closed,
-            shifts: usize::BITS - n.leading_zeros(),
             rng: Rng::new(),
             mp: MetaPerm::new(n),
             steps: vec![Point::default(); n],
             walk: vec![Point::default(); n + 1],
             recorder,
+            steps_buf: vec![],
         }
     }
 
     fn gen(&mut self) {
         if !self.closed {
             for i in 0..self.n {
-                let x = self.rng.gen() as i32 >> self.shifts;
-                let y = self.rng.gen() as i32 >> self.shifts;
+                let x = self.rng.gen() as i32 >> SHIFTS;
+                let y = self.rng.gen() as i32 >> SHIFTS;
                 self.steps[i] = Point { x, y };
             }
         } else {
             let mut v = Point::<i32>::default();
             for i in 0..self.n - 1 {
-                let x = self.rng.gen() as i32 >> self.shifts;
-                let y = self.rng.gen() as i32 >> self.shifts;
+                let x = self.rng.gen() as i32 >> SHIFTS;
+                let y = self.rng.gen() as i32 >> SHIFTS;
                 self.steps[i] = Point { x, y };
                 v.x += x;
                 v.y += y;
@@ -144,25 +150,29 @@ impl Simulator {
     }
 
     fn minify_steps(&mut self, si: u32) {
-        let mut last_steps = self.steps.clone();
+        self.steps_buf.clone_from(&self.steps);
         loop {
             let mut v = Point::<i32>::default();
-            self.steps.iter_mut().for_each(|step| {
-                step.x /= 2;
-                step.y /= 2;
-                v.x += step.x;
-                v.y += step.y;
-            });
+            self.steps
+                .iter_mut()
+                .zip(&mut self.steps_buf)
+                .for_each(|(step, step_buf)| {
+                    step.x = step_buf.x / 2;
+                    step.y = step_buf.y / 2;
+                    v.x += step.x;
+                    v.y += step.y;
+                });
             if self.closed {
                 let last = &mut self.steps[self.n - 1];
                 last.x -= v.x;
                 last.y -= v.y;
             }
-            if !self.steps_noncollinear() || self.simpleness_index::<true>() != si {
-                self.steps = last_steps;
+
+            let bad = !self.steps_noncollinear() || self.simpleness_index::<true>() != si;
+            mem::swap(&mut self.steps_buf, &mut self.steps);
+            if bad {
                 break;
             }
-            last_steps.clone_from(&self.steps);
         }
     }
 
@@ -170,17 +180,42 @@ impl Simulator {
         loop {
             self.gen();
             let si = self.simpleness_index::<false>();
-            if !self.recorder.contains(si)
-                && self.simpleness_index::<true>() == si
-                && self.steps_noncollinear()
-            {
+            if !self.recorder.minify_more {
+                if !self.recorder.contains(si)
+                    && self.simpleness_index::<true>() == si
+                    && self.steps_noncollinear()
+                {
+                    self.minify_steps(si);
+                    self.recorder.insert(si, &self.steps, 0);
+                }
+            } else {
                 self.minify_steps(si);
-                self.recorder.insert(si, &self.steps);
+                let size = self.steps.iter().flat_map(|v| [v.x, v.y]).fold(0, acc_size);
+                if self.simpleness_index::<true>() == si
+                    && self.steps_noncollinear()
+                    && !self.recorder.contains_smaller(si, size)
+                {
+                    let sign_sum_x: i32 = self.steps.iter().map(|v| v.x.signum()).sum();
+                    if sign_sum_x < 0 {
+                        self.steps.iter_mut().for_each(|v| v.x = -v.x);
+                    }
+                    let sign_sum_y: i32 = self.steps.iter().map(|v| v.y.signum()).sum();
+                    if sign_sum_y < 0 {
+                        self.steps.iter_mut().for_each(|v| v.y = -v.y);
+                    }
+                    self.recorder.insert(si, &self.steps, size);
+                }
             }
+
             if !self.recorder.running.load(Ordering::SeqCst) {
                 return;
             }
             self.recorder.count.fetch_add(1, Ordering::SeqCst);
         }
     }
+}
+
+fn acc_size(acc: u64, n: i32) -> u64 {
+    let n_abs = n.unsigned_abs() as u64;
+    acc + n_abs * n_abs * 32 + (n < 0) as u64
 }

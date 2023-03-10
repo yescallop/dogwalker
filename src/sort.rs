@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-fn main() -> io::Result<()> {
+pub fn main() -> io::Result<()> {
     for entry in fs::read_dir("record")? {
         let path = entry?.path();
         if path.is_file() {
@@ -31,7 +31,7 @@ fn sort(path: PathBuf) -> io::Result<()> {
             .parse()
             .unwrap();
         map.insert(si, line);
-        if si < last_si {
+        if si <= last_si {
             sorted = false;
         }
         last_si = si;

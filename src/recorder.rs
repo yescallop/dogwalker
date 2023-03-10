@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     fmt,
     fs::File,
     io::{self, BufRead, BufReader, Write},
@@ -9,11 +9,12 @@ use std::{
     },
 };
 
-use crate::Point;
 use mixhash::Mix;
 
+use crate::{acc_size, Point};
+
 struct RecorderState {
-    si_set: HashSet<u32, Mix>,
+    si_map: HashMap<u32, u64, Mix>,
     file: File,
     buf: String,
 }
@@ -24,11 +25,12 @@ pub struct Recorder {
     pub closed: bool,
     pub running: AtomicBool,
     pub count: AtomicU64,
+    pub minify_more: bool,
     state: RwLock<RecorderState>,
 }
 
 impl Recorder {
-    pub fn new(n: usize, closed: bool) -> io::Result<Recorder> {
+    pub fn new(n: usize, closed: bool, minify_more: bool) -> io::Result<Recorder> {
         assert!(if closed { n > 2 } else { n > 0 });
 
         let kind = if closed { "closed" } else { "general" };
@@ -39,17 +41,19 @@ impl Recorder {
             .create(true)
             .open(path)?;
         let mut reader = BufReader::new(file);
-        let mut si_set = HashSet::with_hasher(Mix);
+        let mut si_map = HashMap::with_hasher(Mix);
         let mut si_min = u32::MAX;
 
         let mut buf = String::new();
 
         while reader.read_line(&mut buf)? != 0 {
-            if let Some(si) = buf
-                .split_once(':')
-                .and_then(|(si, _)| si.parse::<u32>().ok())
-            {
-                si_set.insert(si);
+            if let Some((si, nums)) = buf.split_once(':') {
+                let si = si.parse().unwrap();
+                let size = nums
+                    .matches(|ch: char| ch == '-' || ch.is_ascii_digit())
+                    .filter_map(|n| n.parse::<i32>().ok())
+                    .fold(0, acc_size);
+                si_map.insert(si, size);
                 si_min = si_min.min(si);
             }
             buf.clear();
@@ -62,8 +66,9 @@ impl Recorder {
             closed,
             running: AtomicBool::new(true),
             count: AtomicU64::new(0),
+            minify_more,
             state: RwLock::new(RecorderState {
-                si_set,
+                si_map,
                 file: reader.into_inner(),
                 buf: String::new(),
             }),
@@ -71,14 +76,24 @@ impl Recorder {
     }
 
     pub fn contains(&self, si: u32) -> bool {
-        self.state.read().unwrap().si_set.contains(&si)
+        self.state.read().unwrap().si_map.contains_key(&si)
     }
 
-    pub fn insert(&self, si: u32, steps: &[Point<i32>]) {
-        let RecorderState { si_set, file, buf } = &mut *self.state.write().unwrap();
-        if !si_set.insert(si) {
-            return;
+    pub fn contains_smaller(&self, si: u32, size: u64) -> bool {
+        if let Some(&x) = self.state.read().unwrap().si_map.get(&si) {
+            x <= size
+        } else {
+            false
         }
+    }
+
+    pub fn insert(&self, si: u32, steps: &[Point<i32>], size: u64) {
+        let RecorderState {
+            si_map: si_set,
+            file,
+            buf,
+        } = &mut *self.state.write().unwrap();
+        si_set.insert(si, size);
 
         buf.clear();
         write_msg(si, steps, buf).unwrap();
