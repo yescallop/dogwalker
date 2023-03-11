@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
-    fmt,
+    fmt::{self, Display},
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{self, Write},
     sync::{
         atomic::{AtomicBool, AtomicU64},
         RwLock,
@@ -11,12 +11,11 @@ use std::{
 
 use mixhash::Mix;
 
-use crate::{acc_size, Point};
+use crate::{parser::parse_record_file, size_of_steps, Point};
 
 struct RecorderState {
     si_map: HashMap<u32, u64, Mix>,
     file: File,
-    buf: String,
 }
 
 #[readonly::make]
@@ -25,39 +24,26 @@ pub struct Recorder {
     pub closed: bool,
     pub running: AtomicBool,
     pub count: AtomicU64,
-    pub minify_more: bool,
+    pub minify: bool,
     state: RwLock<RecorderState>,
 }
 
 impl Recorder {
-    pub fn new(n: usize, closed: bool, minify_more: bool) -> io::Result<Recorder> {
-        assert!(if closed { n > 2 } else { n > 0 });
+    pub fn new(n: usize, closed: bool, minify: bool) -> io::Result<Recorder> {
+        assert!(n > 2);
 
         let kind = if closed { "closed" } else { "general" };
         let path = format!("record/{n}-{kind}.txt");
-        let file = File::options()
-            .write(true)
-            .read(true)
-            .create(true)
-            .open(path)?;
-        let mut reader = BufReader::new(file);
-        let mut si_map = HashMap::with_hasher(Mix);
+
+        let records = parse_record_file(&path)?;
+
         let mut si_min = u32::MAX;
 
-        let mut buf = String::new();
-
-        while reader.read_line(&mut buf)? != 0 {
-            if let Some((si, nums)) = buf.split_once(':') {
-                let si = si.parse().unwrap();
-                let size = nums
-                    .matches(|ch: char| ch == '-' || ch.is_ascii_digit())
-                    .filter_map(|n| n.parse::<i32>().ok())
-                    .fold(0, acc_size);
-                si_map.insert(si, size);
-                si_min = si_min.min(si);
-            }
-            buf.clear();
-        }
+        let si_map = records
+            .iter()
+            .filter_map(|rec| Some((rec.si, size_of_steps(rec.steps.as_ref()?))))
+            .inspect(|&(si, _)| si_min = si_min.min(si))
+            .collect();
 
         println!("min: {si_min}");
 
@@ -66,11 +52,10 @@ impl Recorder {
             closed,
             running: AtomicBool::new(true),
             count: AtomicU64::new(0),
-            minify_more,
+            minify,
             state: RwLock::new(RecorderState {
                 si_map,
-                file: reader.into_inner(),
-                buf: String::new(),
+                file: File::options().append(true).open(&path)?,
             }),
         })
     }
@@ -91,26 +76,25 @@ impl Recorder {
         let RecorderState {
             si_map: si_set,
             file,
-            buf,
         } = &mut *self.state.write().unwrap();
         si_set.insert(si, size);
 
-        buf.clear();
-        write_msg(si, steps, buf).unwrap();
-
-        writeln!(file, "{}", buf).unwrap();
-        println!("{}", buf);
+        writeln!(file, "{si}: {}", Steps(steps)).unwrap();
+        println!("{si}: {}", Steps(steps));
     }
 }
 
-pub fn write_msg(cnt: u32, steps: &[Point<i32>], writer: &mut impl fmt::Write) -> fmt::Result {
-    write!(writer, "{}: {{", cnt)?;
-    for i in 0..steps.len() {
-        if i != 0 {
-            write!(writer, ",")?;
+pub struct Steps<'a>(pub &'a [Point<i32>]);
+
+impl<'a> Display for Steps<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, step) in self.0.iter().enumerate() {
+            if i != 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{{{},{}}}", step.x, step.y)?;
         }
-        let step = steps[i];
-        write!(writer, "{{{},{}}}", step.x, step.y)?;
+        write!(f, "}}")
     }
-    write!(writer, "}}")
 }

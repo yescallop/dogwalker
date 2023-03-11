@@ -5,18 +5,18 @@ use std::{
     time::Instant,
 };
 
-use dogwalker::{sort, Recorder, Simulator};
+use dogwalker::{Recorder, Simulator};
 
 fn main() -> io::Result<()> {
     let arg = env::args().nth(1).unwrap();
     let mut arg = &*arg;
 
     if arg == "s" {
-        return sort::main();
+        return dogwalker::sort_records();
     }
-    let mut minify_more = false;
+    let mut minify = false;
     if let Some(rest) = arg.strip_prefix('m') {
-        minify_more = true;
+        minify = true;
         arg = rest;
     }
     let mut closed = false;
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     }
     let n = arg.parse().unwrap();
 
-    let recorder = Arc::new(Recorder::new(n, closed, minify_more)?);
+    let recorder = Arc::new(Recorder::new(n, closed, minify)?);
     let mut handles = vec![];
     let start = Instant::now();
 
