@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     io::{self, BufRead, BufReader},
-    path::Path,
     vec,
 };
 
@@ -16,8 +15,8 @@ pub struct Record {
     pub steps: Option<Vec<Point<i32>>>,
 }
 
-pub fn parse_record_file(path: impl AsRef<Path>) -> io::Result<Vec<Record>> {
-    let mut reader = LineReader::new(BufReader::new(File::open(path)?));
+pub fn parse_record_file(file: &mut File) -> io::Result<Vec<Record>> {
+    let mut reader = LineReader::new(BufReader::new(file));
     let mut recs = vec![];
 
     while let Some(line) = reader.read_line()? {

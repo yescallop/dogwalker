@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt::{self, Display},
     fs::File,
     io::{self, Write},
     sync::{
@@ -11,7 +10,11 @@ use std::{
 
 use mixhash::Mix;
 
-use crate::{parser::parse_record_file, size_of_steps, Point};
+use crate::{
+    parser::parse_record_file,
+    util::{create_file, size_of_steps, Steps},
+    Point,
+};
 
 struct RecorderState {
     si_map: HashMap<u32, u64, Mix>,
@@ -35,7 +38,8 @@ impl Recorder {
         let kind = if closed { "closed" } else { "general" };
         let path = format!("record/{n}-{kind}.txt");
 
-        let records = parse_record_file(&path)?;
+        let mut file = create_file(path)?;
+        let records = parse_record_file(&mut file)?;
 
         let mut si_min = u32::MAX;
 
@@ -53,10 +57,7 @@ impl Recorder {
             running: AtomicBool::new(true),
             count: AtomicU64::new(0),
             minify,
-            state: RwLock::new(RecorderState {
-                si_map,
-                file: File::options().append(true).open(&path)?,
-            }),
+            state: RwLock::new(RecorderState { si_map, file }),
         })
     }
 
@@ -81,20 +82,5 @@ impl Recorder {
 
         writeln!(file, "{si}: {}", Steps(steps)).unwrap();
         println!("{si}: {}", Steps(steps));
-    }
-}
-
-pub struct Steps<'a>(pub &'a [Point<i32>]);
-
-impl<'a> Display for Steps<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{")?;
-        for (i, step) in self.0.iter().enumerate() {
-            if i != 0 {
-                write!(f, ",")?;
-            }
-            write!(f, "{{{},{}}}", step.x, step.y)?;
-        }
-        write!(f, "}}")
     }
 }

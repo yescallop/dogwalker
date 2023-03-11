@@ -7,8 +7,9 @@ use std::{
 
 use crate::{
     parser::{parse_record_file, Record},
-    recorder::Steps,
-    size_of_steps, Walker,
+    size_of_steps,
+    util::Steps,
+    Walker,
 };
 
 pub fn sort_records() -> io::Result<()> {
@@ -39,7 +40,7 @@ fn sort(path: PathBuf, walker: &mut Walker) -> io::Result<()> {
         }
     };
 
-    let records = parse_record_file(&path)?;
+    let records = parse_record_file(&mut File::open(&path)?)?;
 
     let mut map = BTreeMap::new();
     let mut last_si = 0;
@@ -81,7 +82,7 @@ fn sort(path: PathBuf, walker: &mut Walker) -> io::Result<()> {
     if sorted {
         println!("unchanged");
     } else {
-        let mut bw = BufWriter::new(File::create(&path)?);
+        let mut bw = BufWriter::new(File::create(path)?);
         for (si, steps) in map {
             if let Some(steps) = steps {
                 writeln!(bw, "{si}: {}", Steps(&steps))?;

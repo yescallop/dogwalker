@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 mixhash = { git = "https://github.com/yescallop/mixhash" }
+num_cpus = "1"
 once_cell = "1"
 quickperm = { git = "https://github.com/yescallop/quickperm-rs" }
 readonly = "0.2"

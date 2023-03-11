@@ -9,6 +9,9 @@ use rng::Rng;
 mod sort;
 pub use sort::sort_records;
 
+mod util;
+use util::size_of_steps;
+
 use std::{
     mem,
     sync::{atomic::Ordering, Arc},
@@ -156,8 +159,17 @@ impl Walker {
 
     pub fn minify_steps(&mut self, si: u32) -> bool {
         let mut minified = false;
-        self.steps_buf.clone_from(&self.steps);
 
+        if self.steps.iter().map(|v| v.x.signum()).sum::<i32>() < 0 {
+            self.steps.iter_mut().for_each(|v| v.x = -v.x);
+            minified = true;
+        }
+        if self.steps.iter().map(|v| v.y.signum()).sum::<i32>() < 0 {
+            self.steps.iter_mut().for_each(|v| v.y = -v.y);
+            minified = true;
+        }
+
+        self.steps_buf.clone_from(&self.steps);
         loop {
             let mut v = Point::<i32>::default();
             self.steps
@@ -180,16 +192,6 @@ impl Walker {
             if !good {
                 break;
             }
-            minified = true;
-        }
-
-        if self.steps.iter().map(|v| v.x.signum()).sum::<i32>() < 0 {
-            self.steps.iter_mut().for_each(|v| v.x = -v.x);
-            minified = true;
-        }
-
-        if self.steps.iter().map(|v| v.y.signum()).sum::<i32>() < 0 {
-            self.steps.iter_mut().for_each(|v| v.y = -v.y);
             minified = true;
         }
 
@@ -261,12 +263,4 @@ impl Simulator {
             self.recorder.count.fetch_add(1, Ordering::SeqCst);
         }
     }
-}
-
-fn size_of_steps(steps: &[Point<i32>]) -> u64 {
-    steps
-        .iter()
-        .flat_map(|v| [v.x, v.y])
-        .map(|n| (n.unsigned_abs() as u64).pow(2))
-        .sum()
 }
