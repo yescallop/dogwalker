@@ -73,12 +73,9 @@ impl Recorder {
         }
     }
 
-    pub fn insert(&self, si: u32, steps: &[Point<i32>], size: u64) {
-        let RecorderState {
-            si_map: si_set,
-            file,
-        } = &mut *self.state.write().unwrap();
-        si_set.insert(si, size);
+    pub fn insert(&self, si: u32, steps: &[Point<i64>], size: u64) {
+        let RecorderState { si_map, file } = &mut *self.state.write().unwrap();
+        si_map.insert(si, size);
 
         writeln!(file, "{si}: {}", Steps(steps)).unwrap();
         println!("{si}: {}", Steps(steps));

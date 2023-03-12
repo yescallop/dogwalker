@@ -5,11 +5,11 @@ use std::os::windows::prelude::OpenOptionsExt;
 
 use crate::Point;
 
-pub fn size_of_steps(steps: &[Point<i32>]) -> u64 {
+pub fn size_of_steps(steps: &[Point<i64>]) -> u64 {
     steps
         .iter()
         .flat_map(|v| [v.x, v.y])
-        .map(|n| (n.unsigned_abs() as u64).pow(2))
+        .map(|n| n.unsigned_abs().pow(2))
         .sum()
 }
 
@@ -20,7 +20,7 @@ pub fn create_file(path: impl AsRef<Path>) -> io::Result<File> {
     options.read(true).write(true).create(true).open(path)
 }
 
-pub struct Steps<'a>(pub &'a [Point<i32>]);
+pub struct Steps<'a>(pub &'a [Point<i64>]);
 
 impl<'a> fmt::Display for Steps<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

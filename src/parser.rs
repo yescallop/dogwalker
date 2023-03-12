@@ -12,7 +12,7 @@ use crate::Point;
 #[derive(Debug)]
 pub struct Record {
     pub si: u32,
-    pub steps: Option<Vec<Point<i32>>>,
+    pub steps: Option<Vec<Point<i64>>>,
 }
 
 pub fn parse_record_file(file: &mut File) -> io::Result<Vec<Record>> {

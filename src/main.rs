@@ -34,7 +34,13 @@ fn main() -> io::Result<()> {
         return dogwalker::sort_records();
     }
 
-    let jobs = args.jobs.map(|j| j.get()).unwrap_or_else(num_cpus::get);
+    let core_ids = core_affinity::get_core_ids().unwrap();
+
+    let jobs = args
+        .jobs
+        .map(|j| j.get())
+        .filter(|&j| j <= core_ids.len())
+        .unwrap_or(core_ids.len());
     println!("jobs: {jobs}");
 
     let recorder = Arc::new(Recorder::new(
@@ -42,17 +48,24 @@ fn main() -> io::Result<()> {
         args.closed,
         args.minify,
     )?);
-    let mut handles = vec![];
     let start = Instant::now();
 
-    for _ in 0..jobs {
-        let recorder = recorder.clone();
-        handles.push(thread::spawn(|| Simulator::new(recorder).run()));
-    }
+    let handles = core_ids
+        .into_iter()
+        .take(jobs)
+        .map(|id| {
+            let rec = recorder.clone();
+            thread::spawn(move || {
+                if core_affinity::set_for_current(id) {
+                    Simulator::new(rec).run();
+                }
+            })
+        })
+        .collect::<Vec<_>>();
 
     ctrlc::set_handler(move || {
-        recorder.running.store(false, Ordering::SeqCst);
-        let count = recorder.count.load(Ordering::SeqCst);
+        recorder.running.store(false, Ordering::Relaxed);
+        let count = recorder.count.load(Ordering::Relaxed);
         let speed = count as f64 / start.elapsed().as_secs_f64();
 
         println!("count: {count} ({speed:.0}/s)");

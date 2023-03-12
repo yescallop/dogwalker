@@ -57,9 +57,9 @@ fn segments_intersect(p: [Point<i64>; 4]) -> bool {
 
 pub struct Walker {
     mp: MetaPerm<Dyn>,
-    steps: Vec<Point<i32>>,
+    steps: Vec<Point<i64>>,
     walk: Vec<Point<i64>>,
-    steps_buf: Vec<Point<i32>>,
+    steps_buf: Vec<Point<i64>>,
     closed: bool,
 }
 
@@ -81,7 +81,7 @@ impl Walker {
         }
     }
 
-    pub fn set_steps(&mut self, steps: &[Point<i32>]) {
+    pub fn set_steps(&mut self, steps: &[Point<i64>]) {
         let n = steps.len();
         assert!(n > 2);
 
@@ -95,7 +95,7 @@ impl Walker {
         self.closed = self.is_walk_closed();
     }
 
-    pub fn steps(&self) -> &[Point<i32>] {
+    pub fn steps(&self) -> &[Point<i64>] {
         &self.steps
     }
 
@@ -106,8 +106,8 @@ impl Walker {
             let step = self.steps[i];
             let last_v = v;
 
-            v.x += step.x as i64;
-            v.y += step.y as i64;
+            v.x += step.x;
+            v.y += step.y;
             self.walk[i + 1] = v;
 
             if i >= 2 {
@@ -138,9 +138,10 @@ impl Walker {
     }
 
     pub fn is_walk_closed(&self) -> bool {
-        self.steps.iter().fold((0, 0), |(x, y), step| {
-            (x + step.x as i64, y + step.y as i64)
-        }) == (0, 0)
+        self.steps
+            .iter()
+            .fold((0, 0), |(x, y), step| (x + step.x, y + step.y))
+            == (0, 0)
     }
 
     pub fn has_collinear_steps(&self) -> bool {
@@ -149,7 +150,7 @@ impl Walker {
             let a = self.steps[i];
             for j in i + 1..n {
                 let b = self.steps[j];
-                if (a.x as i64) * (b.y as i64) == (a.y as i64) * (b.x as i64) {
+                if a.x * b.y == a.y * b.x {
                     return true;
                 }
             }
@@ -160,18 +161,18 @@ impl Walker {
     pub fn minify_steps(&mut self, si: u32) -> bool {
         let mut minified = false;
 
-        if self.steps.iter().map(|v| v.x.signum()).sum::<i32>() < 0 {
+        if self.steps.iter().map(|v| v.x.signum()).sum::<i64>() < 0 {
             self.steps.iter_mut().for_each(|v| v.x = -v.x);
             minified = true;
         }
-        if self.steps.iter().map(|v| v.y.signum()).sum::<i32>() < 0 {
+        if self.steps.iter().map(|v| v.y.signum()).sum::<i64>() < 0 {
             self.steps.iter_mut().for_each(|v| v.y = -v.y);
             minified = true;
         }
 
         self.steps_buf.clone_from(&self.steps);
         loop {
-            let mut v = Point::<i32>::default();
+            let mut v = Point::<i64>::default();
             self.steps
                 .iter_mut()
                 .zip(&mut self.steps_buf)
@@ -205,7 +206,7 @@ pub struct Simulator {
     recorder: Arc<Recorder>,
 }
 
-const SHIFTS: u32 = 16;
+const SHIFTS: u32 = 40;
 
 impl Simulator {
     pub fn new(rec: Arc<Recorder>) -> Self {
@@ -219,17 +220,17 @@ impl Simulator {
     fn gen(&mut self) {
         if !self.recorder.closed {
             for step in &mut self.walker.steps {
-                let x = self.rng.gen() as i32 >> SHIFTS;
-                let y = self.rng.gen() as i32 >> SHIFTS;
+                let x = self.rng.gen() as i64 >> SHIFTS;
+                let y = self.rng.gen() as i64 >> SHIFTS;
                 *step = Point { x, y };
             }
         } else {
-            let mut v = Point::<i32>::default();
+            let mut v = Point::<i64>::default();
             let (last, steps) = self.walker.steps.split_last_mut().unwrap();
 
             for step in steps {
-                let x = self.rng.gen() as i32 >> SHIFTS;
-                let y = self.rng.gen() as i32 >> SHIFTS;
+                let x = self.rng.gen() as i64 >> SHIFTS;
+                let y = self.rng.gen() as i64 >> SHIFTS;
                 *step = Point { x, y };
                 v.x += x;
                 v.y += y;
@@ -257,10 +258,10 @@ impl Simulator {
                 }
             }
 
-            if !self.recorder.running.load(Ordering::SeqCst) {
+            if !self.recorder.running.load(Ordering::Relaxed) {
                 return;
             }
-            self.recorder.count.fetch_add(1, Ordering::SeqCst);
+            self.recorder.count.fetch_add(1, Ordering::Relaxed);
         }
     }
 }

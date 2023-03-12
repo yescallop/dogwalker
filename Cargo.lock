@@ -67,6 +67,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_affinity"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4436406e93f52cce33bfba4be067a9f7229da44a634c385e4b22cdfaca5f84cc"
+dependencies = [
+ "libc",
+ "num_cpus",
+ "winapi",
+]
+
+[[package]]
 name = "ctrlc"
 version = "3.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,9 +92,9 @@ name = "dogwalker"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "core_affinity",
  "ctrlc",
  "mixhash",
- "num_cpus",
  "once_cell",
  "quickperm",
  "readonly",
